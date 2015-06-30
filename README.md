@@ -24,7 +24,8 @@ MIT
 * jQuery
 * Owl Carousel
 * [jquery-throttle-debounce](http://benalman.com/projects/jquery-throttle-debounce-plugin/)
-* [Owl Carousel v1 Pseudo-Plugins](https://github.com/rtrvrtg/owlcarousel1-pseudoplugins/commits?author=rtrvrtg)
+* [Owl Carousel v1 Pseudo-Plugins](https://github.com/rtrvrtg/owlcarousel1-pseudoplugins)
+* [JustMakeItBig.js](https://github.com/rtrvrtg/justmakeitbig.js) (optional, for full-screen only)
 
 ## Installation
 
@@ -44,7 +45,21 @@ OwlA11y.Plugin.applyTo(settings);
 $(".owl-carousel").owlCarousel(settings);
 ```
 
+### Play/Pause Button
+
+To show the play/pause button, add the `autoPlay` parameter to the settings, with the number of milliseconds as the value.
+
+### Full-Screen Button
+
+The Full-Screen button depends on [JustMakeItBig.js](https://github.com/rtrvrtg/justmakeitbig.js), and requires that you set `enableFullscreen: true` in your Owl Carousel settings.
+
 ## Changelog
+
+### v0.2
+
+* Fixed some nasty bugs to do with rapid attribute switching
+* Adds play/pause button when autoPlay is enabled
+* Adds full screen button
 
 ### v0.1
 

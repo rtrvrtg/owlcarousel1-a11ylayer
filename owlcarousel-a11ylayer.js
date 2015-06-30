@@ -1,3 +1,8 @@
+/**
+ * Owl Carousel v1 Accessibility Layer
+ * v0.2
+ */
+
 var OwlA11y = {};
 
 // Owl Accessiblity Internals
@@ -5,6 +10,7 @@ OwlA11y.Internals = {
   // Element functions
   element: {
     init: function(e){
+      OwlA11y.Internals.element.makeID(e);
       OwlA11y.Internals.visibleItems.mark(e.owl);
       OwlA11y.Internals.element.controls(e.owl.baseElement);
       OwlA11y.Internals.description.setup(e.owl.baseElement);
@@ -14,6 +20,14 @@ OwlA11y.Internals = {
       setTimeout(function() {
         e.owl.baseElement.attr('data-owl-access-initialised', '1');
       }, 500);
+    },
+    makeID: function(e) {
+      if (!e.owl.baseElement.attr('id')) {
+        e.owl.baseElement.attr(
+          'id',
+          OwlPlugins.utils.makeID('owl-carousel')
+        );
+      }
     },
     busy: function(e){
       e.attr('aria-busy', 'true');
@@ -135,50 +149,37 @@ OwlA11y.Internals = {
   // Visible items
   visibleItems: {
     markSlide: function(slide, isFocusable){
-      var renderChildrenUnfocusable = function(elem) {
-        $(elem).find('[tabindex]').each(function(){
-          renderUnfocusable(this);
-        });
-        $(elem).find('a').not('[tabindex]').each(function(){
-          renderUnfocusable(this);
-        });
-      };
-      var renderUnfocusable = function(elem){
-        var ti = $(elem).attr('tabindex');
-        if (!ti) ti = "0";
-        if (ti != "-1") {
-          $(elem).attr({
-            'data-tabindex-default': ti,
-            'tabindex': "-1"
-          });
-        }
-      };
-      var renderFocusable = function(elem) {
-        $(elem).attr('tabindex', $(elem).attr('data-tabindex-default'));
-      };
+      // Mark aria-hidden and tabindex on slide
+      slide.setAttribute('aria-hidden', isFocusable ? 'false' : 'true');
+      slide.setAttribute('tabindex', isFocusable ? '0' : '-1');
+
       if (isFocusable) {
-        $(slide).attr({
-          'aria-hidden': 'false',
-          'tabindex': '0'
-        });
-        $(slide).find('[data-tabindex-default]').each(function(){
-          renderFocusable(this);
-        });
+        // Make all tabindexable children tabbable
+        var children = slide.querySelectorAll('*[data-tabindex-default]');
+        for (var i = 0; i < children.length; i++) {
+          var recoveredTabindex = children[i].getAttribute('data-tabindex-default');
+          children[i].setAttribute('tabindex', recoveredTabindex);
+        }
       }
       else {
-        $(slide).attr({
-          'aria-hidden': 'true',
-          'tabindex': '-1'
-        });
-        renderChildrenUnfocusable(slide);
+        // Make all tabindexable children... un-tabbable.
+        var children = slide.querySelectorAll('a, *[tabindex]');
+        for (var i = 0; i < children.length; i++) {
+          var tabindex = children[i].getAttribute('tabindex');
+          if (!tabindex) tabindex = "0";
+          if (parseInt(tabindex, 10) >= 0) {
+            children[i].setAttribute('data-tabindex-default', tabindex);
+            children[i].setAttribute('tabindex', '-1');
+          }
+        }
       }
     },
     mark: function(owl) {
       for (var i = 0; i < owl.owlItems.length; i++) {
-      OwlA11y.Internals.visibleItems.markSlide(
-        owl.owlItems[i],
-        (owl.visibleItems.indexOf(i) >= 0)
-      );
+        OwlA11y.Internals.visibleItems.markSlide(
+          owl.owlItems[i],
+          (owl.visibleItems.indexOf(i) >= 0)
+        );
       }
     }
   },
@@ -186,9 +187,9 @@ OwlA11y.Internals = {
   events: {
     defaultAfterAction: function(){
       return function(){
-        OwlA11y.Internals.element.notBusy(this.owl.baseElement)
         OwlA11y.Internals.visibleItems.mark(this.owl);
         OwlA11y.Internals.events.triggerChanges(this.owl);
+        OwlA11y.Internals.element.notBusy(this.owl.baseElement);
         OwlA11y.Internals.element.refocus(this.owl);
       };
     },
@@ -204,41 +205,34 @@ OwlA11y.Internals = {
           if (eventTarg.hasClass('owl-prev')) action = "prev";
           else if (eventTarg.hasClass('owl-next')) action = "next";
         }
-        if (!!action) owl[action]();
+        if (!!action) targ.trigger('owl.' + action);
       }
     },
-    focusInStopOnHover: function(e){
+    focusIn: function(e){
       OwlA11y.Internals.element.ifUnfocused(this, function(e){
-        OwlA11y.Internals.element.markFocused(e);
-        OwlA11y.Internals.blips.clear(e);
-        $(elem).data('owlCarousel').stop();
-        OwlA11y.Internals.description.setup($(e));
-      });
-    },
-    focusOutStopOnOver: function(e){
-      OwlA11y.Internals.element.ifFocused(this, function(e){
-        OwlA11y.Internals.element.markUnfocused(e);
-        $(this).data('owlCarousel').play();
-        OwlA11y.Internals.description.teardown(e);
-      });
-    },
-    focusInDefault: function(e){
-      OwlA11y.Internals.element.ifUnfocused(this, function(e){
+        var autoPlay = $(e).data('owlCarousel').options.autoPlay;
         OwlA11y.Internals.element.markFocused(e);
         OwlA11y.Internals.blips.clear(e);
         OwlA11y.Internals.description.setup($(e));
+        if (!!autoPlay) {
+          $(e).data('owlCarouselAutoPlaySpeed', autoPlay).trigger('owl.stop');
+        }
       });
     },
-    focusOutDefault: function(e){
+    focusOut: function(e){
       OwlA11y.Internals.element.ifFocused(this, function(e){
+        var autoPlay = $(e).data('owlCarouselAutoPlaySpeed');
         OwlA11y.Internals.element.markUnfocused(e);
         OwlA11y.Internals.description.teardown(e);
+        if (!!autoPlay) {
+          $(e).trigger('owl.play', autoPlay);
+        }
       });
     },
     triggerChanges: function(owl) {
       var blipID = OwlPlugins.utils.makeID('owl-blip');
       var blip = OwlA11y.Internals.element.makeHiddenPara(
-        "The carousel has moved.",
+        "The carousel has moved to slide " + (owl.currentItem + 1) + ".",
         blipID,
         "owl-access-blip"
       );
@@ -246,6 +240,163 @@ OwlA11y.Internals = {
       setTimeout(function(){
         OwlA11y.Internals.blips.clear(owl.baseElement);
       }, 1000);
+    }
+  }
+};
+
+// Owl Accessibility Extra Controls
+OwlA11y.ExtraControls = {
+  // Helpful utilities
+  utils: {
+    // Apply attributes to a jQuery element
+    apply: function(elem, attrs){
+      if (!!attrs.text) {
+        elem.text(attrs.text);
+        delete attrs.text;
+      }
+      elem.attr(attrs);
+    }
+  },
+  // Play/Pause button
+  playpause: {
+    // Sets button features depending on whether we are playing or paused
+    features: function (playing) {
+      return {
+        title: playing ? 'Pause autoplay' : 'Start autoplay',
+        text: playing ? 'Pause' : 'Play',
+        'class': 'owl-playpause ' + (playing ? 'owl-playpause-playing' : 'owl-playpause-paused')
+      }
+    },
+    // Triggers play/pause toggle
+    playpauseAction: function(e){
+      var button = $(e.target),
+      elem = button.closest('.owl-carousel'),
+      buttonAttr = {};
+      if (elem.length > 0) {
+        if (elem.data('owlCarouselIsPlaying') == '1') {
+          elem.trigger('owl.stop').data('owlCarouselIsPlaying', '0');
+          buttonAttr = OwlA11y.ExtraControls.playpause.features(false);
+        }
+        else {
+          var speed = elem.data('owlCarouselAutoplay');
+          elem.trigger('owl.play', speed).data('owlCarouselIsPlaying', '1');
+          buttonAttr = OwlA11y.ExtraControls.playpause.features(true);
+        }
+      }
+      OwlA11y.ExtraControls.utils.apply(button, buttonAttr);
+    },
+    // Button click or enter key on button
+    buttonAction: function(e) {
+      e.stopPropagation();
+      if (e.originalEvent.type == "click") {
+        e.preventDefault();
+        OwlA11y.ExtraControls.playpause.playpauseAction(e);
+      }
+      else {
+        if (e.which == 13) e.preventDefault();
+        if (e.which == 13 || e.which == 32) {
+          OwlA11y.ExtraControls.playpause.playpauseAction(e);
+        }
+      }
+    },
+    // Show button
+    button: function(owl){
+      var button = null;
+      if (!!owl.options.autoPlay) {
+        owl.$elem.data('owlCarouselAutoplay', owl.options.autoPlay);
+        owl.$elem.data('owlCarouselIsPlaying', !!owl.options.autoPlay ? '1' : '0');
+        var params = $.extend({
+          tabindex: '0',
+          'aria-controls': owl.$elem.attr('id'),
+          id: OwlPlugins.utils.makeID("owl-carousel-control-playpause")
+        }, OwlA11y.ExtraControls.playpause.features(owl.options.autoPlay));
+        button = $('<button />', params);
+        button.bind('click keydown', OwlA11y.ExtraControls.playpause.buttonAction);
+      }
+      return button;
+    }
+  },
+  // Fullscreen button
+  fullscreen: {
+    features: function(toggled){
+      return {
+        title: toggled ? "Disable Full Screen view and show normally" : "Show in Full Screen",
+        text: toggled ? "Disable Full Screen" : "Show in Full Screen"
+      }
+    },
+    // Button click or enter key on button
+    buttonAction: function(e) {
+      e.stopPropagation();
+      var carousel = $(e.target).closest('.owl-carousel').get(0),
+      fire = false;
+      if (e.originalEvent.type == "click") {
+        e.preventDefault();
+        fire = true;
+      }
+      else {
+        if (e.which == 13) e.preventDefault();
+        if (e.which == 13 || e.which == 32) {
+          fire = true;
+        }
+      }
+      if (fire && JustMakeItBig.canFullscreen()) {
+        JustMakeItBig.toggle(carousel, e.target, function(toggled){
+          var attrs = OwlA11y.ExtraControls.fullscreen.features(toggled);
+          OwlA11y.ExtraControls.utils.apply($(e.target), attrs);
+        });
+      }
+    },
+    // Show button
+    button: function(owl){
+      var button = null;
+      if (!!owl.options.enableFullscreen && !!window.JustMakeItBig) {
+        var params = $.extend(
+          {
+            'class': 'owl-fullscreen',
+            tabindex: 0,
+            'aria-controls': owl.$elem.attr('id'),
+            id: OwlPlugins.utils.makeID("owl-carousel-control-fullscreen")
+          },
+          OwlA11y.ExtraControls.fullscreen.features(false)
+        );
+        button = $('<button />', params);
+        button.bind('click keydown', OwlA11y.ExtraControls.fullscreen.buttonAction);
+      }
+      return button;
+    }
+  },
+  // Controls on root element
+  element: {
+    init: function(owl){
+      // Sets up the owl-buttons object if one doesn't exist
+      var controls = $('.owl-controls .owl-buttons', owl.$elem);
+      if (!controls.length) {
+        $(owl.$elem).find('.owl-controls').append($('<div />', {
+          'class': 'owl-buttons'
+        }));
+        controls = $('.owl-controls .owl-buttons', owl.baseElement);
+      }
+
+      // Enumerates all custom controls
+      var customControls = [];
+
+      // Play/pause button
+      var playpause = OwlA11y.ExtraControls.playpause.button(owl);
+      if (!!playpause) customControls.push(playpause);
+
+      // Fullscreen button
+      var fullscreen = OwlA11y.ExtraControls.fullscreen.button(owl);
+      if (!!fullscreen) customControls.push(fullscreen);
+
+      if (customControls.length) {
+        // Builds container for custom container, populates it,
+        // and adds it to the controls area
+        var customContainer = $('<div />', {
+          'class': 'owl-custom-controls'
+        });
+        customContainer.append(customControls);
+        controls.after(customContainer);
+      }
     }
   }
 };
@@ -258,6 +409,7 @@ OwlA11y.Plugin = new OwlPlugins.plugin({
   ],
   afterInit: function(){
     OwlA11y.Internals.element.init(this);
+    OwlA11y.ExtraControls.element.init(this);
   },
   beforeUpdate: [
     'a11y.description.teardown',
@@ -283,10 +435,8 @@ OwlA11y.Plugin = new OwlPlugins.plugin({
           'aria-relevant': 'additions',
           'aria-busy': 'true'
         });
-        if (!$('body').attr('data-owl-access-keyup')) {
-          $(document.documentElement).keyup(OwlA11y.Internals.events.documentKeyUp);
-          $('body').attr('data-owl-access-keyup', '1');
-        }
+
+        this.$elem.keyup(OwlA11y.Internals.events.documentKeyUp).attr('data-owl-access-keyup', '1');
       },
       // Set carousel as being busy
       busy: function() {
@@ -306,14 +456,8 @@ OwlA11y.Plugin = new OwlPlugins.plugin({
     focus: {
       // Initialise focus behaviour
       setup: function(){
-        if (this.options.stopOnHover) {
-          this.$elem.focusin(OwlA11y.Internals.events.focusInStopOnHover);
-          this.$elem.focusout(OwlA11y.Internals.events.focusOutStopOnHover);
-        }
-        else {
-          this.$elem.focusin(OwlA11y.Internals.events.focusInDefault);
-          this.$elem.focusout(OwlA11y.Internals.events.focusOutDefault);
-        }
+        this.$elem.focusin(OwlA11y.Internals.events.focusIn);
+        this.$elem.focusout(OwlA11y.Internals.events.focusOut);
       }
     },
     // Description text
